@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: url-shortener
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn url_shortener:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: url-shortener-db
+          property: connectionString
+
+databases:
+  - name: url-shortener-db
+    plan: free
+    databaseName: urlshortener
