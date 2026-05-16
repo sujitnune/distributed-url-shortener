@@ -1,1 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Distributed URL Shortener</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#050505;--surface:#111111;--surface2:#1a1a1a;--surface3:#252525;
+  --border:#333;--text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
+  --accent:#3b82f6;--accent2:#60a5fa;--accent3:#93c5fd;
+  --green:#10b981;--green2:#34d399;--red:#ef4444;--red2:#f87171;
+  --orange:#f59e0b;--purple:#a855f7;--cyan:#06b6d4;
+}
+html{font-size:15px}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
 
+/* Animated background */
+body::before{content:'';position:fixed;inset:0;background:
+  radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.08), transparent 25%),
+  radial-gradient(circle at 85% 30%, rgba(168, 85, 247, 0.08), transparent 25%);
+  pointer-events:none;z-index:0}
+
+.container{max-width:1100px;margin:0 auto;padding:2rem 1.5rem;position:relative;z-index:1}
+
+/* ─── Header ─── */
+header{text-align:center;margin-bottom:3rem}
+header h1{font-size:2.8rem;font-weight:800;
+  background:linear-gradient(135deg,var(--accent2),var(--purple));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  letter-spacing:-.03em}
+header p{color:var(--text2);margin-top:.5rem;font-size:1.05rem}
+.badge-row{display:flex;gap:.5rem;justify-content:center;margin-top:1rem;flex-wrap:wrap}
+.badge{font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;
+  padding:.3rem .8rem;border-radius:999px;border:1px solid var(--border);color:var(--text2);
+  background:rgba(255,255,255,0.03);backdrop-filter:blur(4px);}
+.badge.orange{border-color:var(--orange);color:var(--orange)}
+.badge.purple{border-color:var(--purple);color:var(--purple)}
+.badge.cyan{border-color:var(--cyan);color:var(--cyan)}
+
+/* ─── Layout ─── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
+@media(max-width:800px){.grid-2{grid-template-columns:1fr}}
+
+/* ─── Cards ─── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:1.75rem;margin-bottom:1.5rem;
+  box-shadow:0 10px 30px rgba(0,0,0,0.2); transition:border-color .3s, transform .3s; position:relative; overflow:hidden;}
+.card::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--border),var(--surface));opacity:0.5;}
+.card:hover{border-color:var(--surface3);transform:translateY(-2px);}
+.card h2{font-size:1.2rem;font-weight:700;margin-bottom:1.25rem;display:flex;align-items:center;gap:.75rem}
+.card h2 .icon{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;font-size:1rem;
+  background:rgba(255,255,255,0.05);color:var(--text)}
+
+/* ─── Form ─── */
+.shorten-form{display:flex;gap:.75rem}
+.shorten-form input[type=url]{flex:1;padding:.85rem 1.25rem;background:var(--surface2);border:1px solid var(--border);
+  border-radius:12px;color:var(--text);font-size:1rem;outline:none;transition:all .2s; font-family:'JetBrains Mono',monospace;}
+.shorten-form input:focus{border-color:var(--accent); box-shadow:0 0 0 3px rgba(59,130,246,0.15);}
+.shorten-form button{padding:.85rem 1.75rem;border:none;border-radius:12px;cursor:pointer;
+  font-weight:600;font-size:1rem;color:#fff;
+  background:linear-gradient(135deg,var(--accent),var(--purple));
+  transition:transform .2s,box-shadow .2s, filter .2s}
+.shorten-form button:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(59,130,246,.4); filter:brightness(1.1);}
+.shorten-form button:active{transform:scale(.97)}
+
+/* Result */
+.result{margin-top:1.25rem;display:none;padding:1.25rem;border-radius:12px;background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.2)}
+.result.show{display:block;animation:fadeUp .4s cubic-bezier(0.16, 1, 0.3, 1)}
+.result a{color:var(--green2);font-weight:700;text-decoration:none;font-size:1.2rem;word-break:break-all; letter-spacing:0.02em;}
+.result a:hover{text-decoration:underline}
+.result .meta{display:flex;gap:1.25rem;margin-top:.75rem;color:var(--text3);font-size:.85rem; font-family:'JetBrains Mono',monospace;}
+
+/* ─── Trace Pipeline ─── */
+.trace-container{display:flex;flex-direction:column;gap:1rem;}
+.trace-item{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:1rem;
+  display:flex;align-items:center;gap:1rem;font-family:'JetBrains Mono',monospace;font-size:0.85rem;}
+.trace-time{color:var(--text3);font-size:0.75rem;min-width:60px;}
+.trace-url{font-weight:700;color:var(--text);min-width:100px;}
+.trace-path{display:flex;align-items:center;flex:1;gap:0.5rem;overflow-x:auto;padding-bottom:4px;}
+.trace-path::-webkit-scrollbar{height:4px;}
+.trace-path::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+.trace-step{display:flex;align-items:center;gap:0.5rem;background:rgba(255,255,255,0.03);padding:0.25rem 0.75rem;border-radius:8px;border:1px solid var(--border); white-space:nowrap;}
+.trace-step.green{border-color:rgba(16,185,129,0.3);color:var(--green2);}
+.trace-step.orange{border-color:rgba(245,158,11,0.3);color:var(--orange);}
+.trace-step.purple{border-color:rgba(168,85,247,0.3);color:var(--purple);}
+.trace-step.cyan{border-color:rgba(6,182,212,0.3);color:var(--cyan);}
+.trace-step.red{border-color:rgba(239,68,68,0.3);color:var(--red2);}
+.trace-arrow{color:var(--text3);font-size:0.8rem;}
+
+/* ─── CDN Stats ─── */
+.cdn-stats{display:flex;gap:1rem;margin-bottom:1.5rem;}
+.stat-box{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:1rem;text-align:center;}
+.stat-box .val{font-size:2rem;font-weight:800;font-family:'JetBrains Mono',monospace;margin-bottom:0.25rem;}
+.stat-box .val.hit{color:var(--green2);}
+.stat-box .val.miss{color:var(--orange);}
+.stat-box .lbl{font-size:0.75rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;}
+.btn-purge{width:100%;padding:0.75rem;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:8px;cursor:pointer;font-weight:600;transition:all 0.2s;}
+.btn-purge:hover{background:rgba(239,68,68,0.1);border-color:rgba(239,68,68,0.3);color:var(--red2);}
+
+/* ─── Table ─── */
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th{text-align:left;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.06em;
+  padding:.75rem;border-bottom:1px solid var(--border);font-size:.75rem}
+td{padding:.75rem;border-bottom:1px solid var(--surface3);color:var(--text2);vertical-align:middle}
+tr:hover td{background:rgba(255,255,255,0.02)}
+td a{color:var(--accent2);text-decoration:none;font-weight:500;}
+td a:hover{text-decoration:underline}
+.long-url{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block}
+
+/* ─── Node Status ─── */
+.nodes-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:1rem;}
+.node-card{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:1.25rem;text-align:center;
+  transition:all .3s; position:relative;}
+.node-card .name{font-weight:700;font-size:0.95rem;margin-bottom:.5rem;color:var(--text);}
+.node-card .status{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;justify-content:center;gap:0.25rem;}
+.node-card .status::before{content:'';display:block;width:8px;height:8px;border-radius:50%;}
+.node-card .status.up{color:var(--green2);}
+.node-card .status.up::before{background:var(--green2);box-shadow:0 0 10px var(--green2);}
+.node-card .status.down{color:var(--red2);}
+.node-card .status.down::before{background:var(--red2);box-shadow:0 0 10px var(--red2);}
+.node-card .count{font-size:1.8rem;font-weight:800;margin:.5rem 0;font-family:'JetBrains Mono',monospace;}
+.node-card.backend .count{color:var(--purple);}
+.node-card.storage .count{color:var(--cyan);}
+.node-card .label{font-size:.75rem;color:var(--text3);font-weight:500;}
+.node-actions{margin-top:1rem;display:flex;gap:.5rem;justify-content:center}
+.node-actions button{font-size:.7rem;padding:.35rem .75rem;border-radius:6px;border:1px solid var(--border);
+  background:var(--surface);color:var(--text2);cursor:pointer;font-weight:600;transition:all .2s;}
+.node-actions button:hover{border-color:var(--accent);color:var(--accent2);background:rgba(59,130,246,0.1);}
+.node-actions button.danger:hover{border-color:var(--red);color:var(--red2);background:rgba(239,68,68,0.1);}
+
+/* ─── Event Log ─── */
+.log-box{height:200px;overflow-y:auto;background:#000;border:1px solid var(--border);
+  border-radius:12px;padding:1rem;font-family:'JetBrains Mono',monospace;font-size:.8rem;line-height:1.6;color:var(--text2);}
+.log-box::-webkit-scrollbar{width:6px}
+.log-box::-webkit-scrollbar-thumb{background:var(--border);border-radius:6px}
+
+.empty-state{color:var(--text3);text-align:center;padding:2.5rem;font-size:.9rem;font-weight:500;}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media(max-width:640px){
+  .shorten-form{flex-direction:column}
+  header h1{font-size:2rem}
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>Distributed Shortener</h1>
+    <p>Simulating edge caching and load balancing in real-time</p>
+    <div class="badge-row">
+      <span class="badge orange">CDN Edge Cache</span>
+      <span class="badge purple">Load Balancer</span>
+      <span class="badge cyan">3 Storage Nodes</span>
+    </div>
+  </header>
+
+  <div class="grid-2">
+    <!-- Shorten -->
+    <div class="card">
+      <h2><span class="icon">⚡</span> Shorten a URL</h2>
+      <form class="shorten-form" id="shortenForm">
+        <input type="url" id="urlInput" placeholder="https://example.com/very-long-url" required>
+        <button type="submit">Shorten</button>
+      </form>
+      <div class="result" id="result">
+        <a id="shortLink" href="#" target="_blank"></a>
+        <div class="meta">
+          <span id="metaPrimary"></span>
+          <span id="metaReplicas"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- CDN Cache -->
+    <div class="card">
+      <h2><span class="icon">🌍</span> CDN Edge Cache</h2>
+      <div class="cdn-stats">
+        <div class="stat-box">
+          <div class="val hit" id="cdnHits">0</div>
+          <div class="lbl">Cache Hits</div>
+        </div>
+        <div class="stat-box">
+          <div class="val miss" id="cdnMisses">0</div>
+          <div class="lbl">Cache Misses</div>
+        </div>
+      </div>
+      <div style="max-height:100px;overflow-y:auto;margin-bottom:1rem;font-family:'JetBrains Mono';font-size:0.8rem;border:1px solid var(--border);border-radius:8px;padding:0.5rem;background:var(--surface2);" id="cdnItems">
+        <div class="empty-state" style="padding:1rem;">Cache is empty</div>
+      </div>
+      <button class="btn-purge" onclick="purgeCDN()">Purge Cache</button>
+    </div>
+  </div>
+
+  <!-- Live Trace -->
+  <div class="card">
+    <h2><span class="icon">🛰</span> Live Routing Trace</h2>
+    <div class="trace-container" id="traceLog">
+      <div class="empty-state">No requests routed yet. Shorten or visit a URL!</div>
+    </div>
+  </div>
+
+  <!-- Node Status -->
+  <div class="card">
+    <h2><span class="icon">🖥</span> System Infrastructure</h2>
+    <h3 style="font-size:0.85rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.75rem;">Backend Servers (Load Balanced)</h3>
+    <div class="nodes-grid" id="backendsGrid"></div>
+    
+    <h3 style="font-size:0.85rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.75rem;">Storage Nodes (Consistent Hash Ring)</h3>
+    <div class="nodes-grid" id="storageGrid"></div>
+  </div>
+
+  <div class="grid-2">
+    <!-- URL History -->
+    <div class="card">
+      <h2><span class="icon">📋</span> Shortened URLs</h2>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Short</th><th>Target URL</th><th>Nodes</th></tr></thead>
+          <tbody id="urlTable"><tr><td colspan="3" class="empty-state">No URLs</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Event Log -->
+    <div class="card">
+      <h2><span class="icon">📡</span> Event Log</h2>
+      <div class="log-box" id="logBox">Waiting for events…</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const BASE = location.origin;
+
+// ─── Shorten form ───
+document.getElementById('shortenForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) return;
+  const res = await fetch('/api/shorten', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+  const data = await res.json();
+  if (data.error) { alert(data.error); return; }
+  const link = `${BASE}/${data.short}`;
+  const el = document.getElementById('shortLink');
+  el.href = link; el.textContent = link;
+  document.getElementById('metaPrimary').textContent = `Storage: ${data.primary}`;
+  document.getElementById('metaReplicas').textContent = `Via: ${data.backend}`;
+  document.getElementById('result').classList.add('show');
+  document.getElementById('urlInput').value = '';
+  refreshAll();
+});
+
+// ─── Refresh helpers ───
+async function refreshAll() {
+  const [urls, nodes, logs, cdn, traces] = await Promise.all([
+    fetch('/api/urls').then(r=>r.json()),
+    fetch('/api/nodes').then(r=>r.json()),
+    fetch('/api/logs').then(r=>r.json()),
+    fetch('/api/cdn').then(r=>r.json()),
+    fetch('/api/trace').then(r=>r.json())
+  ]);
+  renderTable(urls); 
+  renderNodes(nodes); 
+  renderLogs(logs);
+  renderCDN(cdn);
+  renderTraces(traces);
+}
+
+function renderTable(urls) {
+  const tb = document.getElementById('urlTable');
+  if (!urls.length) { tb.innerHTML = '<tr><td colspan="3" class="empty-state">No URLs</td></tr>'; return; }
+  tb.innerHTML = urls.map(u => `<tr>
+    <td><a href="${BASE}/${u.short}" target="_blank">${u.short}</a></td>
+    <td><span class="long-url" title="${u.long}">${u.long}</span></td>
+    <td style="font-size:0.75rem;color:var(--text3)">${u.primary}</td>
+  </tr>`).join('');
+}
+
+function renderNodes(nodes) {
+  document.getElementById('backendsGrid').innerHTML = nodes.backends.map(b => `<div class="node-card backend">
+    <div class="name">${b.name}</div>
+    <div class="count">${b.requests}</div>
+    <div class="label">requests handled</div>
+  </div>`).join('');
+
+  document.getElementById('storageGrid').innerHTML = nodes.storage.map(n => `<div class="node-card storage" style="border-color:${n.active?'rgba(16,185,129,0.2)':'rgba(239,68,68,0.2)'}">
+    <div class="name">${n.name}</div>
+    <div class="status ${n.active?'up':'down'}">${n.active?'Online':'Offline'}</div>
+    <div class="count">${n.records}</div>
+    <div class="label">records stored</div>
+    <div class="node-actions">
+      ${n.active
+        ? `<button class="danger" onclick="toggleNode('${n.name}','fail')">Simulate Fail</button>`
+        : `<button onclick="toggleNode('${n.name}','recover')">Recover</button>`}
+    </div>
+  </div>`).join('');
+}
+
+function renderLogs(logs) {
+  const box = document.getElementById('logBox');
+  box.textContent = logs.length ? logs.join('\n') : 'Waiting for events…';
+  box.scrollTop = box.scrollHeight;
+}
+
+function renderCDN(cdn) {
+  document.getElementById('cdnHits').textContent = cdn.hits;
+  document.getElementById('cdnMisses').textContent = cdn.misses;
+  const itemsEl = document.getElementById('cdnItems');
+  if (!cdn.entries.length) {
+    itemsEl.innerHTML = '<div class="empty-state" style="padding:1rem;">Cache is empty</div>';
+  } else {
+    itemsEl.innerHTML = cdn.entries.map(e => `
+      <div style="display:flex;justify-content:space-between;padding:0.25rem 0;border-bottom:1px solid var(--border);">
+        <span style="color:var(--accent3)">${e.short}</span>
+        <span style="color:var(--text3)">ttl: ${e.expires_in}s</span>
+      </div>
+    `).join('');
+  }
+}
+
+function renderTraces(traces) {
+  const container = document.getElementById('traceLog');
+  if (!traces.length) return;
+  container.innerHTML = traces.map(t => `
+    <div class="trace-item" style="animation:fadeUp 0.3s ease">
+      <div class="trace-time">${t.time}</div>
+      <div class="trace-url" style="color:${t.type==='SHORTEN'?'var(--accent2)':'var(--green2)'}">${t.url}</div>
+      <div style="font-size:0.7rem;padding:2px 6px;border-radius:4px;background:var(--surface3);color:var(--text2);margin-right:0.5rem;">${t.type}</div>
+      <div class="trace-path">
+        ${t.path.map((step, idx) => `
+          <div class="trace-step ${step.color}"><strong>${step.step}</strong> ${step.status}</div>
+          ${idx < t.path.length - 1 ? '<div class="trace-arrow">→</div>' : ''}
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function purgeCDN() {
+  await fetch('/api/cdn/purge', {method:'POST'});
+  refreshAll();
+}
+
+async function toggleNode(name, action) {
+  await fetch(`/api/node/${name}/${action}`, {method:'POST'});
+  refreshAll();
+}
+
+// Initial load & Polling
+refreshAll();
+setInterval(refreshAll, 2000); // Poll every 2s for live CDN TTL updates
+</script>
+</body>
+</html>
